@@ -1,0 +1,38 @@
+-- teritories information
+WITH
+  territories AS (
+    SELECT
+      TerritoryID,
+      Name AS Region,
+      CountryRegionCode
+    FROM `adwentureworks_db.salesterritory`
+  ),
+
+-- Orders information
+
+  orders AS (
+    SELECT
+      TerritoryID,
+      LAST_DAY(CAST(OrderDate AS date)) AS order_month,
+      COUNT(DISTINCT CustomerID) AS number_customers,
+      COUNT(DISTINCT SalesOrderID) AS num_orders,
+      COUNT(DISTINCT SalesPersonID) AS no_salesPersons,
+      ROUND((SUM(SubTotal) + SUM(TaxAmt) + SUM(Freight)))  AS total_w_tax
+    FROM `adwentureworks_db.salesorderheader`
+    GROUP BY 1,2
+  )
+
+-- Main querry
+
+SELECT 
+  orders.order_month,
+  territories.CountryRegionCode,
+  territories.region,
+  orders.num_orders,
+  orders.number_customers,
+  orders.no_salesPersons,
+  orders.total_w_tax
+FROM territories
+JOIN orders
+  ON territories.TerritoryID = orders.TerritoryID
+ORDER BY 2 DESC

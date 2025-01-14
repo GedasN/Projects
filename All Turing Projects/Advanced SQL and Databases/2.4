@@ -1,0 +1,51 @@
+WITH 
+  territories AS (
+    SELECT
+      TerritoryID,
+      Name AS Region,
+      CountryRegionCode
+    FROM `adwentureworks_db.salesterritory`
+  ),
+
+  orders as (
+    SELECT
+      TerritoryID,
+      LAST_DAY(CAST(OrderDate AS date)) AS order_month,
+      COUNT(DISTINCT CustomerID) AS number_customers,
+      COUNT(DISTINCT SalesOrderID) AS number_orders,
+      COUNT(DISTINCT SalesPersonID) AS no_salesPersons,
+      ROUND((SUM(SubTotal) + SUM(TaxAmt) + SUM(Freight)))  AS total_w_tax
+    FROM `adwentureworks_db.salesorderheader`
+    GROUP BY 1,2
+  ),
+
+  tax_rate AS (
+    SELECT
+      state.CountryRegionCode,
+      ROUND(AVG(TaxRate),1) AS mean_tax_rate,
+      ROUND((COUNT(tax_rate.TaxRate)/Count (state.StateProvinceID)),2) AS perc_provinces_w_tax
+    FROM `adwentureworks_db.stateprovince` AS state
+    LEFT JOIN  `adwentureworks_db.salestaxrate` AS tax_rate
+      ON state.StateProvinceID = tax_rate.StateProvinceID
+    GROUP BY 1
+  )
+ 
+SELECT
+  orders.order_month,
+  territories.CountryRegionCode,
+  territories.region,
+  orders.number_orders,
+  orders.number_customers,
+  orders.no_salesPersons,
+  orders.total_w_tax,
+  RANK() OVER (PARTITION BY territories.CountryRegionCode,territories.region ORDER BY total_w_tax) AS country_sales_rank,
+  ROUND(SUM(total_w_tax) OVER (PARTITION BY territories.CountryRegionCode,territories.region ORDER BY order_month )) AS cummulative_sum,
+  tax_rate.mean_tax_rate,
+  tax_rate.perc_provinces_w_tax
+FROM orders
+JOIN territories
+  ON territories.TerritoryID = orders.TerritoryID
+JOIN tax_rate
+  ON territories.CountryRegionCode = tax_rate.CountryRegionCode
+WHERE territories.CountryRegionCode = 'US'
+ORDER BY orders.total_w_tax DESC

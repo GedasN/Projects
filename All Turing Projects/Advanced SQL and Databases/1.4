@@ -1,0 +1,94 @@
+WITH 
+  customers AS (
+    SELECT
+      CustomerID,
+      AccountNumber,
+      CustomerType
+    FROM `adwentureworks_db.customer`
+  ),
+
+  contacts AS (
+    SELECT 
+      CustomerID,
+      contact.Firstname,
+      contact.LastName,
+      CONCAT(contact.firstname,' ',contact.lastname) AS Fullname,
+      CONCAT((CASE WHEN contact.title IS NULL THEN 'Dear' ELSE contact.title END),' ',contact.lastname) AS Addressing_title,
+      contact.emailaddress,
+      contact.phone,
+    FROM `adwentureworks_db.contact` AS contact
+    JOIN `adwentureworks_db.individual` AS individual
+      ON contact.ContactId = individual.ContactID
+  ),
+
+  addresses AS (
+    SELECT
+      customeraddress.CustomerID,
+      address.AddressLine1,
+      address.AddressLine2,
+      address.city,
+      state_province.name AS State,
+      country_region.Name AS Country
+    FROM `adwentureworks_db.address` AS address
+    JOIN `adwentureworks_db.customeraddress` AS customeraddress
+      ON customeraddress.AddressID = address.AddressID
+    JOIN `adwentureworks_db.stateprovince`AS state_province
+      ON address.StateProvinceID = state_province.StateProvinceID
+    JOIN `adwentureworks_db.countryregion` AS country_region
+      ON state_province.CountryRegionCode = country_region.CountryRegionCode
+  ),
+
+ 
+  orders as (
+    SELECT
+      CustomerID,
+      COUNT(SalesOrderID) AS number_orders,
+      ROUND(SUM(SubTotal) + SUM(TaxAmt) + SUM(Freight)) AS total_amount,
+      MAX(OrderDate) AS latest_orders_date,
+      CASE
+        WHEN MAX(OrderDate) > DATE_SUB( (SELECT MAX(OrderDate) FROM `adwentureworks_db.salesorderheader`), INTERVAL 365 day)
+        THEN 'Active'
+        ELSE 'Inactive'
+        END AS Order_status
+    FROM `adwentureworks_db.salesorderheader`
+    GROUP BY 1
+
+  )
+  
+
+SELECT customers.customerid,
+  contacts.firstname,
+  contacts.lastname,
+  contacts.Fullname,
+  contacts.Addressing_title,
+  contacts.emailaddress,
+  contacts.phone,
+  customers.accountnumber,
+  customers.customertype,
+  addresses.city,
+  addresses.addressline1,
+  addresses.addressline2,
+  LEFT(addresses.addressline1,STRPOS(addresses.addressline1,' ')) AS address_no,
+  RIGHT(addresses.addressline1,LENGTH(addresses.addressline1) - STRPOS(addresses.addressline1,' ')) AS address_st,
+  addresses.State,
+  addresses.Country,
+  orders.number_orders,
+  orders.total_amount,
+  orders.latest_orders_date,
+  orders.order_status
+FROM customers
+JOIN contacts
+  ON customers.customerid = contacts.customerid
+JOIN addresses
+  ON addresses.customerid = customers.customerid
+JOIN orders
+  ON customers.CustomerID = orders.CustomerID
+WHERE customers.customertype = 'I'
+    AND order_status = 'Active'
+    AND addresses.Country IN ('United States','Canada')
+    AND (orders.total_amount >= 2500 OR orders.number_orders >= 5)
+ORDER BY 
+  addresses.Country,
+  addresses.State,
+  orders.latest_orders_date
+LIMIT 500 

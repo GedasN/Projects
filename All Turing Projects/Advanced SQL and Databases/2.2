@@ -1,0 +1,35 @@
+WITH
+  territories AS (
+    SELECT
+      TerritoryID,
+      Name AS Region,
+      CountryRegionCode
+    FROM `adwentureworks_db.salesterritory`
+  ),
+
+
+  orders AS (
+    SELECT
+      TerritoryID,
+      LAST_DAY(CAST(OrderDate AS date)) AS order_month,
+      COUNT(DISTINCT CustomerID) AS number_customers,
+      COUNT(DISTINCT SalesOrderID) AS number_orders,
+      COUNT(DISTINCT SalesPersonID) AS no_salesPersons,
+      ROUND((SUM(SubTotal) + SUM(TaxAmt) + SUM(Freight)))  AS total_w_tax
+    FROM `adwentureworks_db.salesorderheader`
+    GROUP BY 1,2
+  )
+
+
+SELECT 
+  orders.order_month,
+  territories.CountryRegionCode,
+  territories.region,
+  orders.number_orders,
+  orders.number_customers,
+  orders.no_salesPersons,
+  orders.total_w_tax,
+  SUM(orders.total_w_tax) OVER (PARTITION BY territories.CountryRegionCode ORDER BY orders.order_month) AS cummulative_sum
+FROM territories
+JOIN orders
+  ON territories.TerritoryID = orders.TerritoryID
